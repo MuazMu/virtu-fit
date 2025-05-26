@@ -127,7 +127,7 @@ export default function Home() {
       } else {
         setUploadStatus('error');
       }
-    } catch (_err) {
+    } catch {
       setUploadStatus('error');
     }
   };
@@ -144,7 +144,7 @@ export default function Home() {
       if (!apiRes.ok) throw new Error('Failed to generate avatar');
       const data = await apiRes.json();
       setAvatarModelUrl(data.modelUrl || null);
-    } catch (_err) {
+    } catch {
       // fallback: do nothing
     }
   };
@@ -168,7 +168,7 @@ export default function Home() {
       if (!apiRes.ok) throw new Error('Failed to generate 3D model');
       const data = await apiRes.json();
       setModelUrl(data.modelUrl || null);
-    } catch (_err) {
+    } catch {
       setMeshyError('Failed to generate 3D model.');
     } finally {
       setMeshyLoading(false);
@@ -190,7 +190,7 @@ export default function Home() {
       if (!res.ok) throw new Error('Failed to get size');
       const data = await res.json();
       setSizingResult(`Estimated size: ${data.size} (height: ${data.height} cm, weight: ${data.weight} kg)`);
-    } catch (_err) {
+    } catch {
       setSizingError('Failed to estimate size. Please try again.');
     } finally {
       setSizingLoading(false);
@@ -217,7 +217,7 @@ export default function Home() {
         ...prev,
         { sender: "bot", message: data.reply || '[No reply from AI]' },
       ]);
-    } catch (_err) {
+    } catch {
       setChatError('Failed to get reply from AI. Please try again.');
     } finally {
       setChatLoading(false);

@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     const data = await res.json();
     // Assume the response contains a model URL or file info
     return new Response(JSON.stringify({ modelUrl: data.modelUrl || data.url || data }), { status: 200 });
-  } catch (err) {
+  } catch {
     return new Response(JSON.stringify({ error: 'Failed to connect to Meshy API' }), { status: 500 });
   }
 } 

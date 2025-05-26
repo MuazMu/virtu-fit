@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     const data = await res.json();
     const aiMessage = data.choices?.[0]?.message?.content || 'Sorry, I could not generate a reply.';
     return new Response(JSON.stringify({ reply: aiMessage }), { status: 200 });
-  } catch (err) {
+  } catch {
     return new Response(JSON.stringify({ error: 'Failed to connect to OpenRouter API' }), { status: 500 });
   }
 } 

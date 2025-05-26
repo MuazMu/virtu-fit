@@ -82,6 +82,5 @@ export default function ThreeDViewer({ url }: { url: string }) {
   );
 }
 
-// Required for GLTF loading
-// @ts-expect-error
+// @ts-expect-error: useGLTF.preload is not typed in useGLTF but required for preloading models
 useGLTF.preload = () => {}; 

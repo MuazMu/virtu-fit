@@ -31,15 +31,18 @@ export async function GET() {
       return new Response(JSON.stringify({ error }), { status: res.status });
     }
     const data = await res.json();
-    // Simplify product data
-    const products = data.data.products.edges.map((edge: any) => ({
-      id: edge.node.id,
-      title: edge.node.title,
-      image: edge.node.images.edges[0]?.node.url,
-      price: `${edge.node.priceRange.minVariantPrice.amount} ${edge.node.priceRange.minVariantPrice.currencyCode}`,
-    }));
+    // Type guard for product node
+    const products = (data.data.products.edges as unknown[]).map((edge) => {
+      const node = (edge as any).node;
+      return {
+        id: node.id,
+        title: node.title,
+        image: node.images.edges[0]?.node.url,
+        price: `${node.priceRange.minVariantPrice.amount} ${node.priceRange.minVariantPrice.currencyCode}`,
+      };
+    });
     return new Response(JSON.stringify({ products }), { status: 200 });
-  } catch (err) {
+  } catch {
     return new Response(JSON.stringify({ error: 'Failed to fetch products from Shopify' }), { status: 500 });
   }
 } 

@@ -5,13 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Image from "next/image";
 
-type Product = {
-  id: string;
-  title: string;
-  image: string;
-  price: string;
-};
-
 export default function CheckoutPage() {
   const params = useSearchParams();
   const title = params.get("title") || "Sample Product";
