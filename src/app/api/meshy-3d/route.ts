@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 
-export async function POST(_req: NextRequest) {
+export async function POST() {
   // You can add Meshy 3D API integration here later
   return new Response(JSON.stringify({ modelUrl: 'https://example.com/mock-model.glb' }), {
     status: 200,
