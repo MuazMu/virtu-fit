@@ -31,9 +31,9 @@ export async function GET() {
       return new Response(JSON.stringify({ error }), { status: res.status });
     }
     const data = await res.json();
-    // Type guard for product node
-    const products = (data.data.products.edges as unknown[]).map((edge) => {
-      const node = (edge as any).node;
+    type ShopifyEdge = { node: { id: string; title: string; images: { edges: { node: { url: string } }[] }; priceRange: { minVariantPrice: { amount: string; currencyCode: string } } } };
+    const products = (data.data.products.edges as ShopifyEdge[]).map((edge) => {
+      const node = edge.node;
       return {
         id: node.id,
         title: node.title,
