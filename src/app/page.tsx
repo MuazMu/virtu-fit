@@ -1,11 +1,10 @@
 "use client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
-import { useRef, useState, useEffect } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -19,13 +18,20 @@ const PlaceholderLogo = () => (
 
 const ThreeDViewer = dynamic(() => import("@/components/ThreeDViewer"), { ssr: false });
 
+type Product = {
+  id: string;
+  title: string;
+  image: string;
+  price: string;
+};
+
 function useFavorites() {
-  const [favorites, setFavorites] = useState<any[]>([]);
+  const [favorites, setFavorites] = useState<Product[]>([]);
   useEffect(() => {
     const favs = localStorage.getItem("favorites");
     if (favs) setFavorites(JSON.parse(favs));
   }, []);
-  const addFavorite = (item: any) => {
+  const addFavorite = (item: Product) => {
     const updated = [...favorites, item];
     setFavorites(updated);
     localStorage.setItem("favorites", JSON.stringify(updated));
@@ -47,10 +53,10 @@ export default function Home() {
   const router = useRouter();
 
   // Shopify catalog
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
   const [productsError, setProductsError] = useState<string | null>(null);
-  const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   // Meshy 3D
   const [meshyLoading, setMeshyLoading] = useState(false);
@@ -90,6 +96,7 @@ export default function Home() {
       .finally(() => setProductsLoading(false));
   }, []);
 
+  // After photo upload, generate avatar with Meshy
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -120,7 +127,7 @@ export default function Home() {
       } else {
         setUploadStatus('error');
       }
-    } catch (err) {
+    } catch (_err) {
       setUploadStatus('error');
     }
   };
@@ -137,7 +144,7 @@ export default function Home() {
       if (!apiRes.ok) throw new Error('Failed to generate avatar');
       const data = await apiRes.json();
       setAvatarModelUrl(data.modelUrl || null);
-    } catch (err) {
+    } catch (_err) {
       // fallback: do nothing
     }
   };
@@ -161,7 +168,7 @@ export default function Home() {
       if (!apiRes.ok) throw new Error('Failed to generate 3D model');
       const data = await apiRes.json();
       setModelUrl(data.modelUrl || null);
-    } catch (err) {
+    } catch (_err) {
       setMeshyError('Failed to generate 3D model.');
     } finally {
       setMeshyLoading(false);
@@ -183,7 +190,7 @@ export default function Home() {
       if (!res.ok) throw new Error('Failed to get size');
       const data = await res.json();
       setSizingResult(`Estimated size: ${data.size} (height: ${data.height} cm, weight: ${data.weight} kg)`);
-    } catch (err) {
+    } catch (_err) {
       setSizingError('Failed to estimate size. Please try again.');
     } finally {
       setSizingLoading(false);
@@ -210,7 +217,7 @@ export default function Home() {
         ...prev,
         { sender: "bot", message: data.reply || '[No reply from AI]' },
       ]);
-    } catch (err) {
+    } catch (_err) {
       setChatError('Failed to get reply from AI. Please try again.');
     } finally {
       setChatLoading(false);

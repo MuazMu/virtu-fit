@@ -47,6 +47,7 @@ export default function ThreeDViewer({ url }: { url: string }) {
           value={selectedClothing}
           onChange={e => setSelectedClothing(e.target.value)}
           className="border rounded px-2 py-1 text-sm"
+          aria-label="Select clothing model"
         >
           {clothingOptions.map(opt => (
             <option key={opt.url} value={opt.url}>{opt.name}</option>
@@ -57,6 +58,7 @@ export default function ThreeDViewer({ url }: { url: string }) {
           value={selectedAnimation}
           onChange={e => setSelectedAnimation(e.target.value)}
           className="border rounded px-2 py-1 text-sm"
+          aria-label="Select animation"
         >
           {animationOptions.map(opt => (
             <option key={opt.value} value={opt.value}>{opt.name}</option>
@@ -81,5 +83,5 @@ export default function ThreeDViewer({ url }: { url: string }) {
 }
 
 // Required for GLTF loading
-// @ts-ignore
-useGLTF.preload = (url: string) => {}; 
+// @ts-expect-error
+useGLTF.preload = () => {}; 

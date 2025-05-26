@@ -3,6 +3,14 @@ import { useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import Image from "next/image";
+
+type Product = {
+  id: string;
+  title: string;
+  image: string;
+  price: string;
+};
 
 export default function CheckoutPage() {
   const params = useSearchParams();
@@ -14,7 +22,7 @@ export default function CheckoutPage() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground py-12">
       <Card className="w-full max-w-md p-8 flex flex-col gap-6 items-center">
         <h1 className="text-2xl font-bold mb-2">Checkout</h1>
-        <img src={image} alt={title} className="w-32 h-32 object-contain rounded mb-2" />
+        <Image src={image} alt={title} width={128} height={128} className="w-32 h-32 object-contain rounded mb-2" />
         <div className="text-center">
           <div className="font-semibold text-lg">{title}</div>
           <div className="text-muted-foreground text-base mb-2">{price}</div>
