@@ -1,7 +1,7 @@
 "use client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTrigger, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { useEffect, useState, useRef } from "react";
@@ -320,6 +320,10 @@ export default function Home() {
                   <Button variant="outline">Preview Uploaded Photo</Button>
                 </DialogTrigger>
                 <DialogContent className="flex flex-col items-center gap-4">
+                  <DialogTitle>Preview Uploaded Photo</DialogTitle>
+                  <DialogDescription>
+                    Here you can preview your uploaded photo and see the selected product overlaid. You can also generate a 3D model.
+                  </DialogDescription>
                   <motion.div
                     className="relative w-64 h-80 flex items-center justify-center"
                     initial={{ opacity: 0, y: 40 }}
