@@ -1,7 +1,7 @@
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment, useGLTF, useAnimations } from '@react-three/drei';
 import { useEffect, useState } from 'react';
-import { XR, ARButton, VRButton } from '@react-three/xr';
+import { XR, ARButton, VRButton, createXRStore } from '@react-three/xr';
 
 // Sample clothing models and animations
 const clothingOptions = [
@@ -20,14 +20,20 @@ function Model({ url, animationName }: { url: string, animationName?: string }) 
   const { actions } = useAnimations(animations, scene);
 
   useEffect(() => {
+    let didSetup = false;
+    let cleanup: (() => void) | undefined;
     if (animationName && actions && actions[animationName]) {
       actions[animationName].reset().play();
-      return () => actions[animationName].stop();
+      cleanup = () => { actions[animationName]! .stop(); };
+      didSetup = true;
     }
+    return didSetup ? cleanup : undefined;
   }, [actions, animationName]);
 
   return <primitive object={scene} />;
 }
+
+const xrStore = createXRStore();
 
 export default function ThreeDViewer({ url }: { url: string }) {
   // State for clothing and animation selection
@@ -65,7 +71,7 @@ export default function ThreeDViewer({ url }: { url: string }) {
           ))}
         </select>
       </div>
-      <XR>
+      <XR store={xrStore}>
         <Canvas camera={{ position: [0, 1, 2.5], fov: 45 }} shadows>
           <ambientLight intensity={0.7} />
           <directionalLight position={[2, 5, 2]} intensity={1.2} castShadow />
@@ -74,13 +80,12 @@ export default function ThreeDViewer({ url }: { url: string }) {
           <OrbitControls enablePan enableZoom enableRotate />
         </Canvas>
         <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 8 }}>
-          <ARButton />
-          <VRButton />
+          <ARButton store={xrStore} />
+          <VRButton store={xrStore} />
         </div>
       </XR>
     </div>
   );
 }
 
-// @ts-expect-error: useGLTF.preload is not typed in useGLTF but required for preloading models
 useGLTF.preload = () => {}; 

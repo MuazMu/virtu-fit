@@ -8,6 +8,7 @@ import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import Image from "next/image";
 
 const PlaceholderLogo = () => (
   <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -289,7 +290,7 @@ export default function Home() {
                       tabIndex={0}
                       onKeyDown={e => { if (e.key === 'Enter') setSelectedProduct(product); }}
                     >
-                      <img src={product.image} alt={product.title} className="w-16 h-16 object-contain mb-2" />
+                      <Image src={product.image} alt={product.title} width={64} height={64} className="w-16 h-16 object-contain mb-2" />
                       <span className="font-semibold text-sm">{product.title}</span>
                       <span className="text-xs text-muted-foreground">{product.price}</span>
                       <Button
@@ -297,7 +298,14 @@ export default function Home() {
                         size="sm"
                         className="mt-2"
                         aria-label={isFavorite(product.id) ? "Remove from favorites" : "Add to favorites"}
-                        onClick={e => { e.stopPropagation(); isFavorite(product.id) ? removeFavorite(product.id) : addFavorite(product); }}
+                        onClick={e => {
+                          e.stopPropagation();
+                          if (isFavorite(product.id)) {
+                            removeFavorite(product.id);
+                          } else {
+                            addFavorite(product);
+                          }
+                        }}
                       >
                         {isFavorite(product.id) ? "♥ Remove" : "♡ Favorite"}
                       </Button>
@@ -319,9 +327,9 @@ export default function Home() {
                     exit={{ opacity: 0, y: 40 }}
                     transition={{ duration: 0.3 }}
                   >
-                    <img src={image} alt="Preview" className="rounded-lg max-h-80 max-w-full border absolute left-0 top-0 w-full h-full object-contain z-0" />
+                    <Image src={image} alt="Preview" className="rounded-lg max-h-80 max-w-full border absolute left-0 top-0 w-full h-full object-contain z-0" width={256} height={256} />
                     {selectedProduct && (
-                      <img src={selectedProduct.image} alt={selectedProduct.title} className="absolute left-0 top-0 w-full h-full object-contain z-10 pointer-events-none" />
+                      <Image src={selectedProduct.image} alt={selectedProduct.title} className="absolute left-0 top-0 w-full h-full object-contain z-10 pointer-events-none" width={64} height={64} />
                     )}
                   </motion.div>
                   {selectedProduct && (
@@ -449,7 +457,7 @@ export default function Home() {
             <div className="flex flex-wrap gap-4 justify-center w-full">
               {favorites.map(fav => (
                 <Card key={fav.id} className="p-2 flex flex-col items-center">
-                  <img src={fav.image} alt={fav.title} className="w-16 h-16 object-contain mb-2" />
+                  <Image src={fav.image} alt={fav.title} width={64} height={64} className="w-16 h-16 object-contain mb-2" />
                   <span className="font-semibold text-sm">{fav.title}</span>
                   <span className="text-xs text-muted-foreground">{fav.price}</span>
                   <Button
