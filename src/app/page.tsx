@@ -1,102 +1,469 @@
-import Image from "next/image";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Card } from "@/components/ui/card";
+import { useRef, useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
+
+const PlaceholderLogo = () => (
+  <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect width="36" height="36" rx="8" fill="#6366F1" />
+    <text x="50%" y="55%" textAnchor="middle" fill="#fff" fontSize="18" fontWeight="bold" dy=".3em">VF</text>
+  </svg>
+);
+
+const ThreeDViewer = dynamic(() => import("@/components/ThreeDViewer"), { ssr: false });
+
+function useFavorites() {
+  const [favorites, setFavorites] = useState<any[]>([]);
+  useEffect(() => {
+    const favs = localStorage.getItem("favorites");
+    if (favs) setFavorites(JSON.parse(favs));
+  }, []);
+  const addFavorite = (item: any) => {
+    const updated = [...favorites, item];
+    setFavorites(updated);
+    localStorage.setItem("favorites", JSON.stringify(updated));
+  };
+  const removeFavorite = (id: string) => {
+    const updated = favorites.filter(f => f.id !== id);
+    setFavorites(updated);
+    localStorage.setItem("favorites", JSON.stringify(updated));
+  };
+  const isFavorite = (id: string) => favorites.some(f => f.id === id);
+  return { favorites, addFavorite, removeFavorite, isFavorite };
+}
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [image, setImage] = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<null | 'success' | 'error'>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  // Shopify catalog
+  const [products, setProducts] = useState<any[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [productsError, setProductsError] = useState<string | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
+
+  // Meshy 3D
+  const [meshyLoading, setMeshyLoading] = useState(false);
+  const [meshyError, setMeshyError] = useState<string | null>(null);
+  const [modelUrl, setModelUrl] = useState<string | null>(null);
+
+  // Sizing logic state
+  const [height, setHeight] = useState(170);
+  const [weight, setWeight] = useState(70);
+  const [sizingResult, setSizingResult] = useState<string | null>(null);
+  const [sizingLoading, setSizingLoading] = useState(false);
+  const [sizingError, setSizingError] = useState<string | null>(null);
+
+  // Chatbot UI state
+  const [chatInput, setChatInput] = useState("");
+  const [chatHistory, setChatHistory] = useState<{ sender: "user" | "bot"; message: string }[]>([
+    { sender: "bot", message: "Hi! I'm your AI stylist. Ask me anything about fashion, colors, or outfits!" },
+  ]);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
+
+  const { favorites, addFavorite, removeFavorite, isFavorite } = useFavorites();
+
+  // Avatar model from Meshy
+  const [avatarModelUrl, setAvatarModelUrl] = useState<string | null>(null);
+
+  // Fetch Shopify products
+  useEffect(() => {
+    setProductsLoading(true);
+    fetch("/api/products")
+      .then((res) => res.json())
+      .then((data) => {
+        setProducts(data.products || []);
+        setProductsError(null);
+      })
+      .catch(() => setProductsError("Failed to load products."))
+      .finally(() => setProductsLoading(false));
+  }, []);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setImage(ev.target?.result as string);
+        setDialogOpen(true);
+      };
+      reader.readAsDataURL(file);
+      // Upload to API
+      uploadToApi(file);
+      // Generate avatar with Meshy
+      generateAvatarWithMeshy(file);
+    }
+  };
+
+  const uploadToApi = async (file: File) => {
+    setUploadStatus(null);
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      if (res.ok) {
+        setUploadStatus('success');
+      } else {
+        setUploadStatus('error');
+      }
+    } catch (err) {
+      setUploadStatus('error');
+    }
+  };
+
+  const generateAvatarWithMeshy = async (file: File) => {
+    setAvatarModelUrl(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const apiRes = await fetch('/api/meshy-3d', {
+        method: 'POST',
+        body: formData,
+      });
+      if (!apiRes.ok) throw new Error('Failed to generate avatar');
+      const data = await apiRes.json();
+      setAvatarModelUrl(data.modelUrl || null);
+    } catch (err) {
+      // fallback: do nothing
+    }
+  };
+
+  // Meshy 3D generation
+  const handleGenerate3D = async () => {
+    if (!image) return;
+    setMeshyLoading(true);
+    setMeshyError(null);
+    setModelUrl(null);
+    try {
+      // Convert base64 image to Blob
+      const res = await fetch(image);
+      const blob = await res.blob();
+      const formData = new FormData();
+      formData.append('file', blob, 'photo.png');
+      const apiRes = await fetch('/api/meshy-3d', {
+        method: 'POST',
+        body: formData,
+      });
+      if (!apiRes.ok) throw new Error('Failed to generate 3D model');
+      const data = await apiRes.json();
+      setModelUrl(data.modelUrl || null);
+    } catch (err) {
+      setMeshyError('Failed to generate 3D model.');
+    } finally {
+      setMeshyLoading(false);
+    }
+  };
+
+  // Sizing logic (real API)
+  const handleSizingSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSizingLoading(true);
+    setSizingError(null);
+    setSizingResult(null);
+    try {
+      const res = await fetch('/api/sizing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ height, weight }),
+      });
+      if (!res.ok) throw new Error('Failed to get size');
+      const data = await res.json();
+      setSizingResult(`Estimated size: ${data.size} (height: ${data.height} cm, weight: ${data.weight} kg)`);
+    } catch (err) {
+      setSizingError('Failed to estimate size. Please try again.');
+    } finally {
+      setSizingLoading(false);
+    }
+  };
+
+  // Chatbot logic (real API)
+  const handleSendChat = async () => {
+    if (!chatInput.trim()) return;
+    setChatHistory((prev) => [...prev, { sender: "user", message: chatInput }]);
+    setChatLoading(true);
+    setChatError(null);
+    const userMessage = chatInput;
+    setChatInput("");
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userMessage }),
+      });
+      if (!res.ok) throw new Error('Failed to get reply');
+      const data = await res.json();
+      setChatHistory((prev) => [
+        ...prev,
+        { sender: "bot", message: data.reply || '[No reply from AI]' },
+      ]);
+    } catch (err) {
+      setChatError('Failed to get reply from AI. Please try again.');
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col bg-background text-foreground">
+      {/* Navigation Bar */}
+      <nav className="w-full flex items-center justify-between py-6 px-8 border-b border-border bg-white/80 backdrop-blur-md sticky top-0 z-10">
+        <div className="flex items-center gap-2">
+          <PlaceholderLogo />
+          <span className="text-2xl font-bold tracking-tight">VirtuFit</span>
         </div>
+        <div className="flex gap-4">
+          <a href="#tryon" className="hover:underline underline-offset-4">Try-On</a>
+          <a href="#sizing" className="hover:underline underline-offset-4">Sizing</a>
+          <a href="#chatbot" className="hover:underline underline-offset-4">Stylist</a>
+          <a href="#branding" className="hover:underline underline-offset-4">Branding</a>
+        </div>
+      </nav>
+
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col items-center justify-center gap-16 py-12 px-4 sm:px-8">
+        {/* Hero Section */}
+        <section className="text-center max-w-2xl mt-8">
+          <h1 className="text-4xl sm:text-5xl font-extrabold mb-4">AI-Powered Virtual Try-On for Fashion</h1>
+          <p className="text-lg text-muted-foreground mb-6">
+            Experience the future of online shopping with realistic 3D try-on, precise sizing, and intelligent fashion advice—all in one beautiful, seamless platform.
+          </p>
+          <Button size="lg" className="rounded-full px-8 py-6 text-base font-semibold">Get Started</Button>
+        </section>
+
+        {/* Virtual Try-On Section */}
+        <section id="tryon" className="w-full max-w-3xl bg-card rounded-xl shadow p-8 flex flex-col items-center gap-4">
+          <h2 className="text-2xl font-bold mb-2">Virtual Try-On</h2>
+          <p className="text-muted-foreground mb-4">Upload a photo and see yourself in any outfit with lifelike 3D avatars and real-time garment simulation.</p>
+          <div className="flex flex-col items-center gap-4 w-full">
+            <Input
+              ref={inputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageChange}
+              className="max-w-xs"
+            />
+            {uploadStatus === 'success' && (
+              <span className="text-green-600 text-sm">Upload successful!</span>
+            )}
+            {uploadStatus === 'error' && (
+              <span className="text-red-600 text-sm">Upload failed. Please try again.</span>
+            )}
+            {/* Shopify product catalog */}
+            <div className="w-full flex flex-wrap gap-4 justify-center mt-4">
+              {productsLoading && <span>Loading products...</span>}
+              {productsError && <span className="text-red-600 text-sm">{productsError}</span>}
+              <AnimatePresence>
+                {products.map((product) => (
+                  <motion.div
+                    key={product.id}
+                    layout
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <Card
+                      className={`p-2 flex flex-col items-center cursor-pointer border-2 ${selectedProduct?.id === product.id ? 'border-primary' : 'border-transparent'}`}
+                      onClick={() => setSelectedProduct(product)}
+                      aria-label={`Select ${product.title}`}
+                      tabIndex={0}
+                      onKeyDown={e => { if (e.key === 'Enter') setSelectedProduct(product); }}
+                    >
+                      <img src={product.image} alt={product.title} className="w-16 h-16 object-contain mb-2" />
+                      <span className="font-semibold text-sm">{product.title}</span>
+                      <span className="text-xs text-muted-foreground">{product.price}</span>
+                      <Button
+                        variant={isFavorite(product.id) ? "destructive" : "outline"}
+                        size="sm"
+                        className="mt-2"
+                        aria-label={isFavorite(product.id) ? "Remove from favorites" : "Add to favorites"}
+                        onClick={e => { e.stopPropagation(); isFavorite(product.id) ? removeFavorite(product.id) : addFavorite(product); }}
+                      >
+                        {isFavorite(product.id) ? "♥ Remove" : "♡ Favorite"}
+                      </Button>
+                    </Card>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+            {image && (
+              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline">Preview Uploaded Photo</Button>
+                </DialogTrigger>
+                <DialogContent className="flex flex-col items-center gap-4">
+                  <motion.div
+                    className="relative w-64 h-80 flex items-center justify-center"
+                    initial={{ opacity: 0, y: 40 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 40 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <img src={image} alt="Preview" className="rounded-lg max-h-80 max-w-full border absolute left-0 top-0 w-full h-full object-contain z-0" />
+                    {selectedProduct && (
+                      <img src={selectedProduct.image} alt={selectedProduct.title} className="absolute left-0 top-0 w-full h-full object-contain z-10 pointer-events-none" />
+                    )}
+                  </motion.div>
+                  {selectedProduct && (
+                    <div className="flex flex-col items-center gap-1 mt-2">
+                      <span className="font-semibold">{selectedProduct.title}</span>
+                      <span className="text-muted-foreground text-sm">{selectedProduct.price}</span>
+                      <Button
+                        variant={isFavorite(selectedProduct.id) ? "destructive" : "outline"}
+                        size="sm"
+                        aria-label={isFavorite(selectedProduct.id) ? "Remove from favorites" : "Add to favorites"}
+                        onClick={() => isFavorite(selectedProduct.id) ? removeFavorite(selectedProduct.id) : addFavorite(selectedProduct)}
+                      >
+                        {isFavorite(selectedProduct.id) ? "♥ Remove" : "♡ Favorite"}
+                      </Button>
+                      <Button variant="secondary" onClick={() => router.push(`/checkout?title=${encodeURIComponent(selectedProduct.title)}&price=${encodeURIComponent(selectedProduct.price)}&image=${encodeURIComponent(selectedProduct.image)}`)}>
+                        Buy (Mock)
+                      </Button>
+                    </div>
+                  )}
+                  <div className="flex flex-col items-center gap-2 mt-4 w-full">
+                    <Button onClick={handleGenerate3D} disabled={meshyLoading} className="w-full">
+                      {meshyLoading ? 'Generating 3D Model...' : 'Generate 3D Model (Meshy.ai)'}
+                    </Button>
+                    {meshyError && <span className="text-red-600 text-sm">{meshyError}</span>}
+                    {modelUrl && (
+                      <div className="w-full mt-2 flex flex-col items-center gap-2">
+                        <a href={modelUrl} target="_blank" rel="noopener noreferrer" className="underline text-blue-600">View 3D Model (external)</a>
+                        <ThreeDViewer url={avatarModelUrl || modelUrl} />
+                        <span className="text-xs text-muted-foreground">(3D preview powered by Three.js)</span>
+                      </div>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
+        </section>
+
+        {/* Sizing Estimation Section */}
+        <section id="sizing" className="w-full max-w-3xl bg-card rounded-xl shadow p-8 flex flex-col items-center gap-4">
+          <h2 className="text-2xl font-bold mb-2">Precise Sizing</h2>
+          <p className="text-muted-foreground mb-4">AI-powered body measurement and size recommendations for the perfect fit, every time.</p>
+          <form className="flex flex-col sm:flex-row gap-4 items-center w-full justify-center" onSubmit={handleSizingSubmit}>
+            <Input
+              type="number"
+              min={100}
+              max={250}
+              value={height}
+              onChange={e => setHeight(Number(e.target.value))}
+              className="max-w-[120px]"
+              placeholder="Height (cm)"
+              required
+            />
+            <Input
+              type="number"
+              min={30}
+              max={200}
+              value={weight}
+              onChange={e => setWeight(Number(e.target.value))}
+              className="max-w-[120px]"
+              placeholder="Weight (kg)"
+              required
+            />
+            <Button type="submit" disabled={sizingLoading}>{sizingLoading ? 'Estimating...' : 'Estimate Size'}</Button>
+          </form>
+          {sizingError && <span className="text-red-600 text-sm">{sizingError}</span>}
+          {sizingResult && (
+            <Card className="w-full max-w-md p-4 text-center mt-2">{sizingResult}</Card>
+          )}
+        </section>
+
+        {/* Fashion Chatbot Section */}
+        <section id="chatbot" className="w-full max-w-3xl bg-card rounded-xl shadow p-8 flex flex-col items-center gap-4">
+          <h2 className="text-2xl font-bold mb-2">AI Stylist Chatbot</h2>
+          <div className="w-full max-w-xl flex flex-col gap-4">
+            <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
+              {chatHistory.map((msg, idx) => (
+                <motion.div
+                  key={idx}
+                  initial={{ opacity: 0, x: msg.sender === 'user' ? 40 : -40 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: msg.sender === 'user' ? 40 : -40 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <Card className={`p-3 ${msg.sender === 'user' ? 'ml-auto bg-primary text-primary-foreground' : 'mr-auto bg-muted'}`}>{msg.message}</Card>
+                </motion.div>
+              ))}
+              {chatLoading && <Card className="p-3 mr-auto bg-muted">Thinking...</Card>}
+              {chatError && <span className="text-red-600 text-sm">{chatError}</span>}
+            </div>
+            <div className="flex gap-2 mt-2">
+              <Textarea
+                value={chatInput}
+                onChange={e => setChatInput(e.target.value)}
+                placeholder="Ask your stylist anything..."
+                className="resize-none min-h-[40px]"
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendChat();
+                  }
+                }}
+              />
+              <Button onClick={handleSendChat} disabled={chatLoading || !chatInput.trim()} className="h-fit">Send</Button>
+            </div>
+          </div>
+        </section>
+
+        {/* Branding/Logo Section */}
+        <section id="branding" className="w-full max-w-3xl bg-card rounded-xl shadow p-8 flex flex-col items-center gap-4">
+          <h2 className="text-2xl font-bold mb-2">Branding & Logo</h2>
+          <p className="text-muted-foreground mb-4">VirtuFit: Where virtual meets fashion. (Logo and brand assets coming soon)</p>
+          <div className="flex flex-col items-center gap-2">
+            <PlaceholderLogo />
+            <span className="text-muted-foreground text-sm">[Logo Placeholder]</span>
+          </div>
+        </section>
+
+        {/* Favorites Section */}
+        <section className="w-full max-w-3xl bg-card rounded-xl shadow p-8 flex flex-col items-center gap-4 mt-8" aria-label="Favorites">
+          <h2 className="text-2xl font-bold mb-2">Favorites</h2>
+          {favorites.length === 0 ? (
+            <span className="text-muted-foreground">No favorites yet.</span>
+          ) : (
+            <div className="flex flex-wrap gap-4 justify-center w-full">
+              {favorites.map(fav => (
+                <Card key={fav.id} className="p-2 flex flex-col items-center">
+                  <img src={fav.image} alt={fav.title} className="w-16 h-16 object-contain mb-2" />
+                  <span className="font-semibold text-sm">{fav.title}</span>
+                  <span className="text-xs text-muted-foreground">{fav.price}</span>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="mt-2"
+                    aria-label="Remove from favorites"
+                    onClick={() => removeFavorite(fav.id)}
+                  >
+                    ♥ Remove
+                  </Button>
+                </Card>
+              ))}
+            </div>
+          )}
+        </section>
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+
+      {/* Footer */}
+      <footer className="w-full py-6 text-center text-sm text-muted-foreground border-t border-border bg-white/80">
+        &copy; {new Date().getFullYear()} VirtuFit. All rights reserved.
       </footer>
     </div>
   );
