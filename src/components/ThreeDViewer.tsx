@@ -41,44 +41,29 @@ class ErrorBoundary extends React.Component<{ children?: React.ReactNode }, { ha
   }
 }
 
+// Model component - Call hooks unconditionally
 function Model({ url, animationName }: { url: string, animationName?: string }) {
-  // Always call useThree to get the R3F state
-  const state = useThree();
-  const inCanvas = !!state; // Check if state is available
-
-  // Only call GLTF/Animations hooks if in Canvas context
-  let scene = null;
-  let animations = [];
-  let actions = {};
-
-  const fallbackUrl = '/models/jacket.glb';
-  const safeUrl = (url && typeof url === 'string' && url.trim() !== '') ? url : fallbackUrl;
-
-  // Conditionally call hooks based on context state
-  if (inCanvas) {
-      const { scene: loadedScene, animations: loadedAnimations } = useGLTF(safeUrl);
-      scene = loadedScene;
-      animations = loadedAnimations;
-      const { actions: loadedActions } = useAnimations(animations, scene);
-      actions = loadedActions;
-  }
-
+  // Always call hooks at the top level!
+  // useGLTF will suspend while loading and might throw if url is invalid.
+  // This is handled by Suspense and ErrorBoundary.
+  const { scene, animations } = useGLTF(url); // Use the direct url prop
+  const { actions } = useAnimations(animations, scene);
 
   useEffect(() => {
+    // Only try to play animation if actions and the specific animation exist
+    // No need for inCanvas check here, as Model is inside Canvas
     let didSetup = false;
     let cleanup: (() => void) | undefined;
-    // Only try to play animations if inCanvas and actions exist
-    if (inCanvas && animationName && actions && (actions as any)[animationName]) {
-      (actions as any)[animationName].reset().play(); // Type assertion needed due to conditional hook
-      cleanup = () => { (actions as any)[animationName]?.stop(); }; // Type assertion needed
+    if (animationName && actions && actions[animationName]) {
+      actions[animationName].reset().play();
+      cleanup = () => { actions[animationName]?.stop(); };
       didSetup = true;
     }
     return didSetup ? cleanup : undefined;
-  }, [actions, animationName, inCanvas]); // Add inCanvas to dependency array
+  }, [actions, animationName]); // actions dependency is fine here
 
-  // Only render if url is valid and inCanvas is true
-  if (!url || typeof url !== 'string' || url.trim() === '' || !inCanvas || !scene) return null; // Also check if scene loaded
-
+  // Only render the primitive if the scene is loaded
+  if (!scene) return null;
 
   return <primitive object={scene} />;
 }
@@ -95,13 +80,11 @@ export default function ThreeDViewer({ url }: { url: string }) {
     if (url) setSelectedClothing(url);
   }, [url]);
 
-  // This check is already here and correctly placed after hooks.
-  if (!url) return null; // Keep this existing check
-
-  // Add another explicit check before rendering the main structure
+  // Keep the explicit check before rendering the main structure
+  // This ensures the Canvas and its children are not mounted if the initial url is invalid
   if (!url || typeof url !== 'string' || url.trim() === '') {
-      console.error("ThreeDViewer received invalid URL:", url);
-      return null; // Do not render anything if URL is still invalid at this point
+      console.error("ThreeDViewer received invalid or empty URL, not rendering:", url);
+      return null;
   }
 
   return (
@@ -135,8 +118,10 @@ export default function ThreeDViewer({ url }: { url: string }) {
           <ambientLight intensity={0.7} />
           <directionalLight position={[2, 5, 2]} intensity={1.2} castShadow />
           <Environment preset="city" />
+          {/* Wrap Model in Suspense and ErrorBoundary */}
           <ErrorBoundary>
-            <Suspense fallback={null}>
+            <Suspense fallback={null}> {/* Fallback while model loads */}
+              {/* Pass selectedClothing to Model */}
               <Model url={selectedClothing} animationName={selectedAnimation} />
             </Suspense>
           </ErrorBoundary>
