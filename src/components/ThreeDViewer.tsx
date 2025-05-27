@@ -16,6 +16,8 @@ const animationOptions = [
 ];
 
 function Model({ url, animationName }: { url: string, animationName?: string }) {
+  if (!url || typeof url !== 'string' || url.trim() === '') return null;
+
   const { scene, animations } = useGLTF(url);
   const { actions } = useAnimations(animations, scene);
 
