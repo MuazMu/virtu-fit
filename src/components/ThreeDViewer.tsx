@@ -60,7 +60,14 @@ export default function ThreeDViewer({ url }: { url: string }) {
     if (url) setSelectedClothing(url);
   }, [url]);
 
-  if (!url) return null;
+  // This check is already here and correctly placed after hooks.
+  if (!url) return null; // Keep this existing check
+
+  // Add another explicit check before rendering the main structure
+  if (!url || typeof url !== 'string' || url.trim() === '') {
+      console.error("ThreeDViewer received invalid URL:", url);
+      return null; // Do not render anything if URL is still invalid at this point
+  }
 
   return (
     <div style={{ width: '100%', height: 440, borderRadius: 12, overflow: 'hidden', background: '#f3f3f3' }}>
