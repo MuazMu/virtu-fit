@@ -1,6 +1,6 @@
 import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls, Environment, useGLTF, useAnimations } from '@react-three/drei';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { XR, ARButton, VRButton, createXRStore } from '@react-three/xr';
 
 // Sample clothing models and animations
@@ -14,6 +14,28 @@ const animationOptions = [
   { name: 'Walk', value: 'Walk' },
   { name: 'Spin', value: 'Spin' },
 ];
+
+// Simple Error Boundary Component
+class ErrorBoundary extends React.Component<any, { hasError: boolean, error: any }> {
+  state = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    // You can log the error to an error reporting service
+    console.error("Caught an error in ThreeDViewer:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      // You can render any custom fallback UI
+      return <div>Error loading 3D model.</div>;
+    }
+    return this.props.children;
+  }
+}
 
 function Model({ url, animationName }: { url: string, animationName?: string }) {
   // Always call hooks, fallback to a valid .glb if url is invalid
@@ -100,7 +122,11 @@ export default function ThreeDViewer({ url }: { url: string }) {
           <ambientLight intensity={0.7} />
           <directionalLight position={[2, 5, 2]} intensity={1.2} castShadow />
           <Environment preset="city" />
-          <Model url={selectedClothing} animationName={selectedAnimation} />
+          <ErrorBoundary>
+            <Suspense fallback={null}>
+              <Model url={selectedClothing} animationName={selectedAnimation} />
+            </Suspense>
+          </ErrorBoundary>
           <OrbitControls enablePan enableZoom enableRotate />
         </Canvas>
         <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 8 }}>
