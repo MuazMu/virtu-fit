@@ -1,4 +1,4 @@
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls, Environment, useGLTF, useAnimations } from '@react-three/drei';
 import { useEffect, useState } from 'react';
 import { XR, ARButton, VRButton, createXRStore } from '@react-three/xr';
@@ -19,6 +19,15 @@ function Model({ url, animationName }: { url: string, animationName?: string }) 
   // Always call hooks, fallback to a valid .glb if url is invalid
   const fallbackUrl = '/models/jacket.glb';
   const safeUrl = (url && typeof url === 'string' && url.trim() !== '') ? url : fallbackUrl;
+
+  // Context check: only render if inside Canvas
+  let inCanvas = true;
+  try {
+    useThree();
+  } catch {
+    inCanvas = false;
+  }
+
   const { scene, animations } = useGLTF(safeUrl);
   const { actions } = useAnimations(animations, scene);
 
@@ -33,8 +42,8 @@ function Model({ url, animationName }: { url: string, animationName?: string }) 
     return didSetup ? cleanup : undefined;
   }, [actions, animationName]);
 
-  // Only render if url is valid, otherwise render nothing
-  if (!url || typeof url !== 'string' || url.trim() === '') return null;
+  // Only render if url is valid and inCanvas is true
+  if (!url || typeof url !== 'string' || url.trim() === '' || !inCanvas) return null;
 
   return <primitive object={scene} />;
 }
