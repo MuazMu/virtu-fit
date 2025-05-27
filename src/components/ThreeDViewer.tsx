@@ -42,34 +42,43 @@ class ErrorBoundary extends React.Component<{ children?: React.ReactNode }, { ha
 }
 
 function Model({ url, animationName }: { url: string, animationName?: string }) {
-  // Always call hooks, fallback to a valid .glb if url is invalid
+  // Always call useThree to get the R3F state
+  const state = useThree();
+  const inCanvas = !!state; // Check if state is available
+
+  // Only call GLTF/Animations hooks if in Canvas context
+  let scene = null;
+  let animations = [];
+  let actions = {};
+
   const fallbackUrl = '/models/jacket.glb';
   const safeUrl = (url && typeof url === 'string' && url.trim() !== '') ? url : fallbackUrl;
 
-  // Context check: only render if inside Canvas
-  let inCanvas = true;
-  try {
-    useThree();
-  } catch {
-    inCanvas = false;
+  // Conditionally call hooks based on context state
+  if (inCanvas) {
+      const { scene: loadedScene, animations: loadedAnimations } = useGLTF(safeUrl);
+      scene = loadedScene;
+      animations = loadedAnimations;
+      const { actions: loadedActions } = useAnimations(animations, scene);
+      actions = loadedActions;
   }
 
-  const { scene, animations } = useGLTF(safeUrl);
-  const { actions } = useAnimations(animations, scene);
 
   useEffect(() => {
     let didSetup = false;
     let cleanup: (() => void) | undefined;
-    if (animationName && actions && actions[animationName]) {
-      actions[animationName].reset().play();
-      cleanup = () => { actions[animationName]!.stop(); };
+    // Only try to play animations if inCanvas and actions exist
+    if (inCanvas && animationName && actions && (actions as any)[animationName]) {
+      (actions as any)[animationName].reset().play(); // Type assertion needed due to conditional hook
+      cleanup = () => { (actions as any)[animationName]?.stop(); }; // Type assertion needed
       didSetup = true;
     }
     return didSetup ? cleanup : undefined;
-  }, [actions, animationName]);
+  }, [actions, animationName, inCanvas]); // Add inCanvas to dependency array
 
   // Only render if url is valid and inCanvas is true
-  if (!url || typeof url !== 'string' || url.trim() === '' || !inCanvas) return null;
+  if (!url || typeof url !== 'string' || url.trim() === '' || !inCanvas || !scene) return null; // Also check if scene loaded
+
 
   return <primitive object={scene} />;
 }
