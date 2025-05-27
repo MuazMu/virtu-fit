@@ -16,9 +16,10 @@ const animationOptions = [
 ];
 
 function Model({ url, animationName }: { url: string, animationName?: string }) {
-  if (!url || typeof url !== 'string' || url.trim() === '') return null;
-
-  const { scene, animations } = useGLTF(url);
+  // Always call hooks, fallback to a valid .glb if url is invalid
+  const fallbackUrl = '/models/jacket.glb';
+  const safeUrl = (url && typeof url === 'string' && url.trim() !== '') ? url : fallbackUrl;
+  const { scene, animations } = useGLTF(safeUrl);
   const { actions } = useAnimations(animations, scene);
 
   useEffect(() => {
@@ -26,11 +27,14 @@ function Model({ url, animationName }: { url: string, animationName?: string }) 
     let cleanup: (() => void) | undefined;
     if (animationName && actions && actions[animationName]) {
       actions[animationName].reset().play();
-      cleanup = () => { actions[animationName]! .stop(); };
+      cleanup = () => { actions[animationName]!.stop(); };
       didSetup = true;
     }
     return didSetup ? cleanup : undefined;
   }, [actions, animationName]);
+
+  // Only render if url is valid, otherwise render nothing
+  if (!url || typeof url !== 'string' || url.trim() === '') return null;
 
   return <primitive object={scene} />;
 }
