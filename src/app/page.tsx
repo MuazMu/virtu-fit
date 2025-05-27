@@ -135,18 +135,55 @@ export default function Home() {
 
   const generateAvatarWithMeshy = async (file: File) => {
     setAvatarModelUrl(null);
+    setMeshyLoading(true);
+    setMeshyError(null);
+
     try {
-      const formData = new FormData();
-      formData.append('file', file);
+      // Convert File to Data URI on the frontend
+      const reader = new FileReader();
+      const imageDataUri: string = await new Promise((resolve, reject) => {
+        reader.onload = (e) => {
+          if (e.target?.result) {
+            resolve(e.target.result as string);
+          } else {
+            reject(new Error("Failed to read file as Data URL."));
+          }
+        };
+        reader.onerror = (e) => reject(e);
+        reader.readAsDataURL(file);
+      });
+
+      console.log("Frontend: File converted to Data URI, sending to backend.");
+
+      // Make the API call to your backend with JSON body
       const apiRes = await fetch('/api/meshy-3d', {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        // Send the Data URI in the JSON body
+        body: JSON.stringify({ image_url: imageDataUri }),
       });
-      if (!apiRes.ok) throw new Error('Failed to generate avatar');
+
+      if (!apiRes.ok) {
+        const errorData = await apiRes.json();
+        throw new Error(`Backend error: ${errorData?.error || apiRes.statusText}`);
+      }
+
       const data = await apiRes.json();
-      setAvatarModelUrl(data.modelUrl || null);
-    } catch {
-      // fallback: do nothing
+      const modelUrl = data.modelUrl || null;
+      setAvatarModelUrl(modelUrl);
+      setModelUrl(modelUrl); // Assuming modelUrl in page.tsx also displays the avatar
+
+      console.log("Frontend: Received model URL:", modelUrl);
+
+    } catch (error) {
+      console.error("Frontend: Error generating avatar:", error);
+      setMeshyError(`Error generating 3D model: ${error instanceof Error ? error.message : String(error)}`);
+      setAvatarModelUrl(null);
+      setModelUrl(null);
+    } finally {
+      setMeshyLoading(false);
     }
   };
 
