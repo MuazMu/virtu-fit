@@ -36,6 +36,8 @@ function Model({ url, animationName }: { url: string, animationName?: string }) 
 const xrStore = createXRStore();
 
 export default function ThreeDViewer({ url }: { url: string }) {
+  if (!url) return null;
+
   // State for clothing and animation selection
   const [selectedClothing, setSelectedClothing] = useState(clothingOptions[0].url);
   const [selectedAnimation, setSelectedAnimation] = useState(animationOptions[0].value);
