@@ -36,8 +36,6 @@ function Model({ url, animationName }: { url: string, animationName?: string }) 
 const xrStore = createXRStore();
 
 export default function ThreeDViewer({ url }: { url: string }) {
-  if (!url) return null;
-
   // State for clothing and animation selection
   const [selectedClothing, setSelectedClothing] = useState(clothingOptions[0].url);
   const [selectedAnimation, setSelectedAnimation] = useState(animationOptions[0].value);
@@ -46,6 +44,8 @@ export default function ThreeDViewer({ url }: { url: string }) {
   useEffect(() => {
     if (url) setSelectedClothing(url);
   }, [url]);
+
+  if (!url) return null;
 
   return (
     <div style={{ width: '100%', height: 440, borderRadius: 12, overflow: 'hidden', background: '#f3f3f3' }}>
