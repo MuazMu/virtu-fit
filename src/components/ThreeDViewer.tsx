@@ -16,16 +16,20 @@ const animationOptions = [
 ];
 
 // Simple Error Boundary Component
-class ErrorBoundary extends React.Component<any, { hasError: boolean, error: any }> {
+class ErrorBoundary extends React.Component<{ children?: React.ReactNode }, { hasError: boolean, error: Error | null }> {
   state = { hasError: false, error: null };
 
-  static getDerivedStateFromError(error: any) {
-    return { hasError: true, error };
+  static getDerivedStateFromError(error: unknown) {
+    // Update state so the next render will show the fallback UI.
+    // Ensure error is an Error instance or convert it
+    const typedError = error instanceof Error ? error : new Error(String(error));
+    return { hasError: true, error: typedError };
   }
 
-  componentDidCatch(error: any, errorInfo: any) {
-    // You can log the error to an error reporting service
+  componentDidCatch(error: unknown, errorInfo: React.ErrorInfo) {
+    // You can also log the error to an error reporting service
     console.error("Caught an error in ThreeDViewer:", error, errorInfo);
+    // Example logging: logErrorToMyService(error, errorInfo);
   }
 
   render() {
