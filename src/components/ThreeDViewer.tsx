@@ -1,4 +1,4 @@
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment, useGLTF, useAnimations } from '@react-three/drei';
 import React, { useEffect, useState, Suspense } from 'react';
 import { XR, ARButton, VRButton, createXRStore } from '@react-three/xr';
