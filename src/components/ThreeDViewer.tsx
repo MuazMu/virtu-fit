@@ -1,5 +1,5 @@
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Environment, useGLTF, useAnimations } from '@react-three/drei';
+import { OrbitControls, Environment, useGLTF, useAnimations, Text } from '@react-three/drei';
 import React, { useEffect, useState, Suspense } from 'react';
 import { XR, ARButton, VRButton, createXRStore } from '@react-three/xr';
 
@@ -77,15 +77,13 @@ export default function ThreeDViewer({ url }: { url: string }) {
 
   // If a url is passed from parent, use it as the default clothing
   useEffect(() => {
-    if (url) setSelectedClothing(url);
-  }, [url]);
-
-  // Keep the explicit check before rendering the main structure
-  // This ensures the Canvas and its children are not mounted if the initial url is invalid
-  if (!url || typeof url !== 'string' || url.trim() === '') {
-      console.error("ThreeDViewer received invalid or empty URL, not rendering:", url);
-      return null;
-  }
+    if (url) {
+        setSelectedClothing(url);
+    } else {
+        // Optionally reset to a default or null if url becomes invalid
+        // setSelectedClothing(clothingOptions[0].url); // or null
+    }
+  }, [url]); // Dependency on url prop
 
   return (
     <div style={{ width: '100%', height: 440, borderRadius: 12, overflow: 'hidden', background: '#f3f3f3' }}>
@@ -96,7 +94,12 @@ export default function ThreeDViewer({ url }: { url: string }) {
           onChange={e => setSelectedClothing(e.target.value)}
           className="border rounded px-2 py-1 text-sm"
           aria-label="Select clothing model"
+          // disabled={!!url} // Optional: disable if a generated URL is present
         >
+          {/* Include the current 'url' prop in the options if it's different from defaults */}
+          {url && !clothingOptions.find(opt => opt.url === url) && (
+              <option key={url} value={url}>Generated Model</option>
+          )}
           {clothingOptions.map(opt => (
             <option key={opt.url} value={opt.url}>{opt.name}</option>
           ))}
@@ -116,16 +119,25 @@ export default function ThreeDViewer({ url }: { url: string }) {
       <XR store={xrStore}>
         <Canvas camera={{ position: [0, 1, 2.5], fov: 45 }} shadows>
           <ambientLight intensity={0.7} />
-          <directionalLight position={[2, 5, 2]} intensity={1.2} castShadow />
-          <Environment preset="city" />
-          {/* Wrap Model in Suspense and ErrorBoundary */}
-          <ErrorBoundary>
-            <Suspense fallback={null}> {/* Fallback while model loads */}
-              {/* Pass selectedClothing to Model */}
-              <Model url={selectedClothing} animationName={selectedAnimation} />
-            </Suspense>
-          </ErrorBoundary>
-          <OrbitControls enablePan enableZoom enableRotate />
+          {/* Conditionally render main 3D scene content ONLY if selectedClothing is valid */}
+          {selectedClothing && typeof selectedClothing === 'string' && selectedClothing.trim() !== '' ? (
+            <> {/* Use a Fragment to group */}
+              <directionalLight position={[2, 5, 2]} intensity={1.2} castShadow />
+              <Environment preset="city" />
+              <ErrorBoundary>
+                <Suspense fallback={null}> {/* Model loading fallback */}
+                  {/* Model uses the state derived from the prop or dropdown */}
+                  <Model url={selectedClothing} animationName={selectedAnimation} />
+                </Suspense>
+              </ErrorBoundary>
+              <OrbitControls enablePan enableZoom enableRotate />
+            </>
+          ) : (
+             // Optional fallback content inside Canvas when no model is loaded
+             <Text scale={0.1} position={[0, 0, 0]} color="black" anchorX="center" anchorY="middle">
+               Upload photo to generate 3D model
+             </Text>
+          )}
         </Canvas>
         <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 8 }}>
           <ARButton store={xrStore} />
