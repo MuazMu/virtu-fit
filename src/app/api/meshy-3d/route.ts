@@ -6,41 +6,83 @@ function sleep(ms: number) {
 }
 
 export async function POST(req: Request) {
-  const apiKey = process.env.MESHY_API_KEY;
-
-  console.log("[Meshy3D] API Key present:", !!apiKey);
-
+  const apiKey = process.env.TRIPO_API_KEY;
   if (!apiKey || typeof apiKey !== 'string' || apiKey.trim() === '') {
-    console.error("MESHY_API_KEY environment variable is missing or empty.");
-    return NextResponse.json({ error: 'Server configuration error: Missing Meshy API key' }, { status: 500 });
+    console.error("TRIPO_API_KEY environment variable is missing or empty.");
+    return NextResponse.json({ error: 'Server configuration error: Missing Tripo API key' }, { status: 500 });
   }
 
   try {
     // Expect a JSON body with image_url
     const { image_url } = await req.json();
-
-    // Validate the incoming image_url
     if (!image_url || typeof image_url !== 'string' || !image_url.startsWith('data:image/')) {
-         console.error("Invalid or missing image_url in request body.");
-         return NextResponse.json({ error: 'Invalid image data provided.' }, { status: 400 });
+      console.error("Invalid or missing image_url in request body.");
+      return NextResponse.json({ error: 'Invalid image data provided.' }, { status: 400 });
     }
 
-    console.log("[Meshy3D] Backend: Received Data URI, attempting to create Meshy task...");
-    console.log("[Meshy3D] image_url length:", image_url.length);
+    // Convert data URL to Blob
+    function dataURLtoBlob(dataurl: string) {
+      const arr = dataurl.split(',');
+      const mimeMatch = arr[0].match(/:(.*?);/);
+      if (!mimeMatch) throw new Error('Invalid data URL');
+      const mime = mimeMatch[1];
+      const bstr = atob(arr[1]);
+      const n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      for (let i = 0; i < n; i++) {
+        u8arr[i] = bstr.charCodeAt(i);
+      }
+      return new Blob([u8arr], { type: mime });
+    }
 
-    // --- Step 1: Create Image to 3D Task ---
+    // Node.js doesn't have atob, so use Buffer
+    function dataURLtoBuffer(dataurl: string) {
+      const arr = dataurl.split(',');
+      const mimeMatch = arr[0].match(/:(.*?);/);
+      if (!mimeMatch) throw new Error('Invalid data URL');
+      const mime = mimeMatch[1];
+      const bstr = Buffer.from(arr[1], 'base64');
+      return { buffer: bstr, mime };
+    }
+
+    // --- Step 1: Upload Image to Tripo ---
+    const { buffer, mime } = dataURLtoBuffer(image_url);
+    const ext = mime.split('/')[1];
+    const formData = new FormData();
+    formData.append('file', new Blob([buffer], { type: mime }), `upload.${ext}`);
+
+    const uploadRes = await fetch('https://api.tripo3d.ai/v2/openapi/upload', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`
+        // 'Content-Type' will be set automatically by FormData
+      },
+      body: formData as any,
+    });
+    const tripoTraceId = uploadRes.headers.get('X-Tripo-Trace-ID');
+    console.log('[Tripo3D] Upload Response Status:', uploadRes.status, uploadRes.statusText, 'TraceID:', tripoTraceId);
+    const uploadJson = await uploadRes.json();
+    if (uploadJson.code !== 0) {
+      console.error('[Tripo3D] Upload error:', uploadJson, 'TraceID:', tripoTraceId);
+      return NextResponse.json({ error: uploadJson.message || 'Tripo upload failed', suggestion: uploadJson.suggestion, traceId: tripoTraceId }, { status: 500 });
+    }
+    const image_token = uploadJson.data.image_token;
+    if (!image_token) {
+      console.error('[Tripo3D] No image_token returned from upload', uploadJson, 'TraceID:', tripoTraceId);
+      return NextResponse.json({ error: 'No image_token returned from Tripo upload', traceId: tripoTraceId }, { status: 500 });
+    }
+    console.log('[Tripo3D] Got image_token:', image_token, 'TraceID:', tripoTraceId);
+
+    // --- Step 2: Create Image to Model Task ---
     const createTaskBody = {
-      image_url: image_url,
-      // Add optional parameters as needed
-      // ai_model: 'meshy-5',
-      // topology: 'quad',
-      // should_remesh: true,
-      // should_texture: true,
-      // enable_pbr: false,
+      type: 'image_to_model',
+      file: {
+        type: ext,
+        file_token: image_token
+      }
+      // You can add more options here if needed
     };
-    console.log("[Meshy3D] Sending createTaskBody to Meshy:", JSON.stringify(createTaskBody).slice(0, 500));
-
-    const createTaskRes = await fetch('https://api.meshy.ai/openapi/v1/image-to-3d', {
+    const createTaskRes = await fetch('https://api.tripo3d.ai/v2/openapi/task', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -48,105 +90,61 @@ export async function POST(req: Request) {
       },
       body: JSON.stringify(createTaskBody),
     });
-
-    console.log("[Meshy3D] Create Task Response Status:", createTaskRes.status, createTaskRes.statusText);
-    console.log("[Meshy3D] Create Task Response Headers:", JSON.stringify(Object.fromEntries(createTaskRes.headers.entries())));
-
-    const createTaskResText = await createTaskRes.clone().text();
-    console.log("[Meshy3D] Create Task Response Body (first 500 chars):", createTaskResText.slice(0, 500));
-
-    if (!createTaskRes.ok) {
-      let errorDetails = `Meshy API failed with status ${createTaskRes.status}: ${createTaskRes.statusText}`;
-      try {
-          const errorJson = await createTaskRes.json();
-          errorDetails = `Meshy API failed: ${errorJson?.message || JSON.stringify(errorJson)}`;
-          console.error("[Meshy3D] Backend: Meshy API Create Task JSON Error:", createTaskRes.status, errorJson);
-      } catch {
-           const errorText = createTaskResText;
-           errorDetails = `Meshy API failed: ${createTaskRes.status} ${createTaskRes.statusText} - ${errorText.substring(0, 200)}`;
-           console.error("[Meshy3D] Backend: Meshy API Create Task Text Error:", createTaskRes.status, errorText);
-      }
-      return NextResponse.json({ error: `Failed to create Meshy task: ${errorDetails}` }, { status: createTaskRes.status });
+    const createTaskTraceId = createTaskRes.headers.get('X-Tripo-Trace-ID');
+    console.log('[Tripo3D] Create Task Response Status:', createTaskRes.status, createTaskRes.statusText, 'TraceID:', createTaskTraceId);
+    const createTaskJson = await createTaskRes.json();
+    if (createTaskJson.code !== 0) {
+      console.error('[Tripo3D] Create Task error:', createTaskJson, 'TraceID:', createTaskTraceId);
+      return NextResponse.json({ error: createTaskJson.message || 'Tripo create task failed', suggestion: createTaskJson.suggestion, traceId: createTaskTraceId }, { status: 500 });
     }
-
-    const createTaskData = JSON.parse(createTaskResText);
-    const taskId = createTaskData.result;
-    console.log(`[Meshy3D] Backend: Meshy task created with ID: ${taskId}`);
-    console.log("[Meshy3D] Full createTaskData:", JSON.stringify(createTaskData));
-
+    const taskId = createTaskJson.data.task_id;
     if (!taskId) {
-        console.error("[Meshy3D] Backend: Meshy API did not return a task ID in create response:", createTaskData);
-        return NextResponse.json({ error: 'Meshy API did not return a task ID' }, { status: 500 });
+      console.error('[Tripo3D] No task_id returned from create task', createTaskJson, 'TraceID:', createTaskTraceId);
+      return NextResponse.json({ error: 'No task_id returned from Tripo create task', traceId: createTaskTraceId }, { status: 500 });
     }
+    console.log('[Tripo3D] Created task_id:', taskId, 'TraceID:', createTaskTraceId);
 
-    // --- Step 2: Poll for Task Completion ---
-    const pollingInterval = 3000; // Poll every 3 seconds
-    const pollingTimeout = 120000; // Timeout after 120 seconds (2 minutes)
+    // --- Step 3: Poll for Task Completion ---
+    const pollingInterval = 3000; // 3 seconds
+    const pollingTimeout = 120000; // 2 minutes
     const startTime = Date.now();
-
-    console.log(`[Meshy3D] Backend: Starting polling for task ${taskId}...`);
-
     while (Date.now() - startTime < pollingTimeout) {
-        await sleep(pollingInterval); // Wait before polling
-
-        const getTaskRes = await fetch(`https://api.meshy.ai/openapi/v1/image-to-3d/${taskId}`, {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${apiKey}`,
-            },
-        });
-
-        console.log(`[Meshy3D] Polling task ${taskId} - Status:`, getTaskRes.status, getTaskRes.statusText);
-        const getTaskResText = await getTaskRes.clone().text();
-        console.log(`[Meshy3D] Polling task ${taskId} - Response Body (first 500 chars):`, getTaskResText.slice(0, 500));
-
-        if (!getTaskRes.ok) {
-             let errorDetails = `Meshy API GET task status failed with status ${getTaskRes.status}: ${getTaskRes.statusText}`;
-             try {
-                 const errorJson = await getTaskRes.json();
-                 errorDetails = `Meshy API GET task failed: ${errorJson?.message || JSON.stringify(errorJson)}`;
-                 console.error("[Meshy3D] Backend: Meshy API GET Task JSON Error:", getTaskRes.status, errorJson);
-             } catch {
-                 const errorText = getTaskResText;
-                 errorDetails = `Meshy API GET task failed: ${getTaskRes.status} ${getTaskRes.statusText} - ${errorText.substring(0, 200)}`;
-                 console.error("[Meshy3D] Backend: Meshy API GET Task Text Error:", getTaskRes.status, errorText);
-             }
-             return NextResponse.json({ error: `Failed to get Meshy task status: ${errorDetails}` }, { status: getTaskRes.status });
+      await sleep(pollingInterval);
+      const pollRes = await fetch(`https://api.tripo3d.ai/v2/openapi/task/${taskId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+        },
+      });
+      const pollTraceId = pollRes.headers.get('X-Tripo-Trace-ID');
+      const pollJson = await pollRes.json();
+      console.log('[Tripo3D] Polling task', taskId, 'status:', pollJson.data?.status, 'progress:', pollJson.data?.progress, 'TraceID:', pollTraceId);
+      if (pollJson.code !== 0) {
+        console.error('[Tripo3D] Polling error:', pollJson, 'TraceID:', pollTraceId);
+        return NextResponse.json({ error: pollJson.message || 'Tripo polling failed', suggestion: pollJson.suggestion, traceId: pollTraceId }, { status: 500 });
+      }
+      if (pollJson.data.status === 'success') {
+        const modelUrl = pollJson.data.output?.model;
+        if (modelUrl) {
+          console.log('[Tripo3D] Task succeeded, model URL:', modelUrl, 'TraceID:', pollTraceId);
+          return NextResponse.json({ modelUrl, traceId: pollTraceId }, { status: 200 });
+        } else {
+          console.error('[Tripo3D] Task succeeded but no model URL found', pollJson, 'TraceID:', pollTraceId);
+          return NextResponse.json({ error: 'Tripo task succeeded but no model URL found', traceId: pollTraceId }, { status: 500 });
         }
-
-        const taskData = JSON.parse(getTaskResText);
-        console.log(`[Meshy3D] Polling task ${taskId}, status: ${taskData.status}, progress: ${taskData.progress}`);
-        console.log(`[Meshy3D] Full polling response:`, JSON.stringify(taskData));
-
-        if (taskData.status === 'SUCCEEDED') {
-            const modelUrl = taskData.model_urls?.glb;
-
-            if (modelUrl) {
-                console.log(`[Meshy3D] Backend: Task ${taskId} SUCCEEDED, GLB URL: ${modelUrl}`);
-                return NextResponse.json({ modelUrl: modelUrl }, { status: 200 });
-            } else {
-                console.error("[Meshy3D] Backend: Meshy API SUCCEEDED but no GLB model URL found:", taskData);
-                return NextResponse.json({ error: 'Meshy task succeeded but no GLB URL found' }, { status: 500 });
-            }
-        } else if (taskData.status === 'FAILED' || taskData.status === 'CANCELED') {
-            console.error("[Meshy3D] Backend: Meshy API Task Failed:", taskData.task_error);
-            return NextResponse.json({ error: `Meshy task failed: ${taskData.task_error?.message || taskData.status}` }, { status: 500 });
-        }
-
-        // Continue polling if status is PENDING or IN_PROGRESS
+      } else if (['failed', 'cancelled', 'unknown', 'banned', 'expired'].includes(pollJson.data.status)) {
+        console.error('[Tripo3D] Task failed or cancelled', pollJson, 'TraceID:', pollTraceId);
+        return NextResponse.json({ error: `Tripo task failed: ${pollJson.data.status}`, traceId: pollTraceId }, { status: 500 });
+      }
+      // else: status is queued or running, continue polling
     }
-
-    // If the loop times out
-    console.error("[Meshy3D] Backend: Meshy API Polling timed out for task:", taskId);
-    return NextResponse.json({ error: 'Meshy task did not complete in time' }, { status: 500 });
-
-
+    // Timeout
+    console.error('[Tripo3D] Polling timed out for task', taskId);
+    return NextResponse.json({ error: 'Tripo task did not complete in time' }, { status: 500 });
   } catch (error) {
-    console.error("[Meshy3D] Unexpected Backend Error in /api/meshy-3d:", error);
+    console.error('[Tripo3D] Unexpected Backend Error:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : 'N/A';
-    console.error("[Meshy3D] Error details:", errorMessage, errorStack);
-
     return NextResponse.json({ error: `Internal server error: ${errorMessage}` }, { status: 500 });
   }
 } 
