@@ -84,6 +84,15 @@ export default function Home() {
   // Avatar model from Meshy
   const [avatarModelUrl, setAvatarModelUrl] = useState<string | null>(null);
 
+  // Restore avatar from sessionStorage on mount
+  useEffect(() => {
+    const savedModelUrl = sessionStorage.getItem('avatarModelUrl');
+    if (savedModelUrl) {
+      setAvatarModelUrl(savedModelUrl);
+      setModelUrl(savedModelUrl);
+    }
+  }, []);
+
   // Fetch Shopify products
   useEffect(() => {
     setProductsLoading(true);
@@ -172,9 +181,11 @@ export default function Home() {
 
       const data = await apiRes.json();
       const modelUrl = data.modelUrl || null;
+      if (modelUrl) {
+        sessionStorage.setItem('avatarModelUrl', modelUrl);
+      }
       setAvatarModelUrl(modelUrl);
-      setModelUrl(modelUrl); // Assuming modelUrl in page.tsx also displays the avatar
-
+      setModelUrl(modelUrl);
       console.log("Frontend: Received model URL:", modelUrl);
 
     } catch (error) {
@@ -235,7 +246,15 @@ export default function Home() {
     }
   };
 
-  // Chatbot logic (real API)
+  // Function to clear avatar from session
+  const clearAvatar = () => {
+    sessionStorage.removeItem('avatarModelUrl');
+    setAvatarModelUrl(null);
+    setModelUrl(null);
+  };
+
+  // Chatbot logic (real API) - streaming, avatars, context
+  const chatEndRef = useRef<HTMLDivElement>(null);
   const handleSendChat = async () => {
     if (!chatInput.trim()) return;
     setChatHistory((prev) => [...prev, { sender: "user", message: chatInput }]);
@@ -243,22 +262,64 @@ export default function Home() {
     setChatError(null);
     const userMessage = chatInput;
     setChatInput("");
+    // Send recent context (last 10 messages)
+    const context = chatHistory.slice(-10).map(m => ({ role: m.sender, content: m.message }));
+    let reply = "";
+    setChatHistory((prev) => [...prev, { sender: "bot", message: "" }]);
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMessage }),
+        body: JSON.stringify({ message: userMessage, context }),
       });
-      if (!res.ok) throw new Error('Failed to get reply');
-      const data = await res.json();
+      // Streaming support
+      if (res.body && res.ok) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let done = false;
+        while (!done) {
+          const { value, done: doneReading } = await reader.read();
+          done = doneReading;
+          if (value) {
+            reply += decoder.decode(value, { stream: !done });
+            setChatHistory((prev) => {
+              const updated = [...prev];
+              updated[updated.length - 1] = { sender: "bot", message: reply };
+              return updated;
+            });
+          }
+        }
+      } else {
+        // Fallback to non-streaming
+        let data = null;
+        try {
+          data = await res.json();
+        } catch {
+          data = null;
+        }
+        reply = data?.reply || '[No reply from AI]';
+        if (!res.ok) {
+          throw new Error(reply);
+        }
+        setChatHistory((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { sender: "bot", message: reply };
+          return updated;
+        });
+      }
+    } catch (err) {
+      setChatError('Failed to get reply from AI. Please try again.');
       setChatHistory((prev) => [
         ...prev,
-        { sender: "bot", message: data.reply || '[No reply from AI]' },
+        { sender: "bot", message: '[Error: No reply from AI]' },
       ]);
-    } catch {
-      setChatError('Failed to get reply from AI. Please try again.');
     } finally {
       setChatLoading(false);
+      setTimeout(() => {
+        if (chatEndRef.current) {
+          chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 100);
     }
   };
 
@@ -455,7 +516,14 @@ export default function Home() {
                   exit={{ opacity: 0, x: msg.sender === 'user' ? 40 : -40 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <Card className={`p-3 ${msg.sender === 'user' ? 'ml-auto bg-primary text-primary-foreground' : 'mr-auto bg-muted'}`}>{msg.message}</Card>
+                  <div className="flex items-start gap-2">
+                    {msg.sender === 'bot' ? (
+                      <img src="/bot-avatar.png" alt="Bot" className="w-8 h-8 rounded-full" />
+                    ) : (
+                      <img src="/user-avatar.png" alt="You" className="w-8 h-8 rounded-full" />
+                    )}
+                    <Card className={`p-3 ${msg.sender === 'user' ? 'ml-auto bg-primary text-primary-foreground' : 'mr-auto bg-muted'}`}>{msg.message}</Card>
+                  </div>
                 </motion.div>
               ))}
               {chatLoading && <Card className="p-3 mr-auto bg-muted">Thinking...</Card>}
@@ -477,6 +545,7 @@ export default function Home() {
               <Button onClick={handleSendChat} disabled={chatLoading || !chatInput.trim()} className="h-fit">Send</Button>
             </div>
           </div>
+          <div ref={chatEndRef}></div>
         </section>
 
         {/* Branding/Logo Section */}
