@@ -142,10 +142,37 @@ export default function Home() {
     }
   };
 
+  const [generationProgress, setGenerationProgress] = useState<number>(0);
+
   const generateAvatarWithMeshy = async (file: File) => {
     setAvatarModelUrl(null);
     setMeshyLoading(true);
     setMeshyError(null);
+    setGenerationProgress(0);
+
+    // Helper: Poll for modelUrl using taskId
+    const pollForModel = async (taskId: string, maxAttempts = 30, interval = 3000) => {
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        setGenerationProgress(Math.round((attempt / maxAttempts) * 100));
+        try {
+          const pollRes = await fetch('/api/meshy-3d', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ taskId }),
+          });
+          const pollData = await pollRes.json();
+          if (pollData.modelUrl) {
+            setGenerationProgress(100);
+            return pollData.modelUrl;
+          }
+          if (pollData.error) throw new Error(pollData.error);
+          await new Promise(res => setTimeout(res, interval));
+        } catch (err) {
+          throw err;
+        }
+      }
+      throw new Error('Timed out waiting for 3D model.');
+    };
 
     try {
       // Convert File to Data URI on the frontend
@@ -180,7 +207,11 @@ export default function Home() {
       }
 
       const data = await apiRes.json();
-      const modelUrl = data.modelUrl || null;
+      let modelUrl = data.modelUrl || null;
+      if (!modelUrl && data.taskId) {
+        // Poll for the modelUrl using the returned taskId
+        modelUrl = await pollForModel(data.taskId);
+      }
       if (modelUrl) {
         sessionStorage.setItem('avatarModelUrl', modelUrl);
       }
@@ -195,6 +226,7 @@ export default function Home() {
       setModelUrl(null);
     } finally {
       setMeshyLoading(false);
+      setGenerationProgress(0);
     }
   };
 
@@ -434,6 +466,17 @@ export default function Home() {
                         <a href={modelUrl} target="_blank" rel="noopener noreferrer" className="underline text-blue-600">View 3D Model (external)</a>
                         <ThreeDViewer url={avatarModelUrl || modelUrl} />
                         <span className="text-xs text-muted-foreground">(3D preview powered by Three.js)</span>
+                      </div>
+                    )}
+                    {meshyLoading && (
+                      <div className="w-full flex flex-col items-center gap-2 mt-2">
+                        <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                          <div
+                            className="bg-blue-500 h-4 rounded-full transition-all duration-300"
+                            style={{ width: `${generationProgress}%` }}
+                          ></div>
+                        </div>
+                        <span className="text-xs text-muted-foreground">Generating 3D Model... {generationProgress}%</span>
                       </div>
                     )}
                   </div>
