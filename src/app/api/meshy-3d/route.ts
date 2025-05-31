@@ -57,12 +57,15 @@ export async function POST(req: Request) {
     const { image_url, taskId, model_version } = body;
 
     // Helper: Map Tripo error codes to user-friendly messages
-    function tripoErrorResponse(tripoJson: any, traceId: string) {
-      const code = tripoJson.code;
+    function tripoErrorResponse(tripoJson: unknown, traceId: string) {
+      if (typeof tripoJson !== 'object' || tripoJson === null) {
+        return NextResponse.json({ error: 'Unknown Tripo API error', traceId }, { status: 500 });
+      }
+      const code = (tripoJson as any).code;
       const mapped = TRIPO_ERROR_MAP[code];
       return NextResponse.json({
-        error: mapped?.message || tripoJson.message || 'Tripo API error',
-        suggestion: mapped?.suggestion || tripoJson.suggestion,
+        error: mapped?.message || (tripoJson as any).message || 'Tripo API error',
+        suggestion: mapped?.suggestion || (tripoJson as any).suggestion,
         traceId,
         code,
       }, { status: 500 });
@@ -107,7 +110,7 @@ export async function POST(req: Request) {
     const isDirectUrl = image_url.startsWith('http://') || image_url.startsWith('https://');
     if (isDirectUrl) {
       // Pass direct URL to Tripo (no upload needed)
-      const createTaskBody: any = {
+      const createTaskBody: Record<string, unknown> = {
         type: 'image_to_model',
         url: image_url,
         ...(model_version ? { model_version } : {})
@@ -173,7 +176,7 @@ export async function POST(req: Request) {
       let S3Client, PutObjectCommand;
       try {
         ({ S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3'));
-      } catch (e) {
+      } catch {
         return NextResponse.json({
           error: 'The AWS SDK (@aws-sdk/client-s3) is required for STS uploads but is not installed.',
           suggestion: 'Add @aws-sdk/client-s3 to your dependencies to enable large file uploads.',
@@ -196,7 +199,7 @@ export async function POST(req: Request) {
         ContentType: mime,
       }));
       // 3. Use object for task creation
-      const createTaskBody: any = {
+      const createTaskBody: Record<string, unknown> = {
         type: 'image_to_model',
         object: {
           bucket: resource_bucket,
@@ -242,7 +245,7 @@ export async function POST(req: Request) {
       if (!image_token) {
         return NextResponse.json({ error: 'No image_token returned from Tripo upload', traceId: tripoTraceId }, { status: 500 });
       }
-      const createTaskBody: any = {
+      const createTaskBody: Record<string, unknown> = {
         type: 'image_to_model',
         file: {
           type: ext,
