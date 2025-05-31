@@ -20,21 +20,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid image data provided.' }, { status: 400 });
     }
 
-    // Convert data URL to Blob
-    function dataURLtoBlob(dataurl: string) {
-      const arr = dataurl.split(',');
-      const mimeMatch = arr[0].match(/:(.*?);/);
-      if (!mimeMatch) throw new Error('Invalid data URL');
-      const mime = mimeMatch[1];
-      const bstr = atob(arr[1]);
-      const n = bstr.length;
-      const u8arr = new Uint8Array(n);
-      for (let i = 0; i < n; i++) {
-        u8arr[i] = bstr.charCodeAt(i);
-      }
-      return new Blob([u8arr], { type: mime });
-    }
-
     // Node.js doesn't have atob, so use Buffer
     function dataURLtoBuffer(dataurl: string) {
       const arr = dataurl.split(',');
@@ -57,7 +42,7 @@ export async function POST(req: Request) {
         'Authorization': `Bearer ${apiKey}`
         // 'Content-Type' will be set automatically by FormData
       },
-      body: formData as any,
+      body: formData,
     });
     const tripoTraceId = uploadRes.headers.get('X-Tripo-Trace-ID');
     console.log('[Tripo3D] Upload Response Status:', uploadRes.status, uploadRes.statusText, 'TraceID:', tripoTraceId);
@@ -144,7 +129,6 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error('[Tripo3D] Unexpected Backend Error:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
-    const errorStack = error instanceof Error ? error.stack : 'N/A';
     return NextResponse.json({ error: `Internal server error: ${errorMessage}` }, { status: 500 });
   }
 } 
