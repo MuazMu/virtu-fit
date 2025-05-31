@@ -54,8 +54,11 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { image_url, taskId, model_version } = body;
 
+    console.log("Backend: Received request - Task ID:", taskId, "Image URL present:", !!image_url);
+
     // Helper: Map Tripo error codes to user-friendly messages
     function tripoErrorResponse(tripoJson: unknown, traceId: string) {
+      console.error("Backend: Tripo API error response received:", JSON.stringify(tripoJson), "Trace ID:", traceId);
       if (
         typeof tripoJson !== 'object' ||
         tripoJson === null ||
@@ -83,14 +86,17 @@ export async function POST(req: Request) {
       });
       const pollTraceId = pollRes.headers.get('X-Tripo-Trace-ID');
       const pollJson = await pollRes.json();
+      console.log("Backend: Polling Tripo API response:", JSON.stringify(pollJson), "Trace ID:", pollTraceId);
       if (pollJson.code !== 0) {
         return tripoErrorResponse(pollJson, pollTraceId || '');
       }
       if (pollJson.data.status === 'success') {
         const modelUrl = pollJson.data.output?.model;
         if (modelUrl) {
+          console.log("Backend: Model URL found:", modelUrl);
           return NextResponse.json({ modelUrl, traceId: pollTraceId }, { status: 200 });
         } else {
+          console.error("Backend: Tripo task succeeded but no model URL found. Tripo response data.output:", JSON.stringify(pollJson.data.output));
           return NextResponse.json({ error: 'Tripo task succeeded but no model URL found', traceId: pollTraceId }, { status: 500 });
         }
       } else if ([
@@ -127,6 +133,7 @@ export async function POST(req: Request) {
       });
       const createTaskTraceId = createTaskRes.headers.get('X-Tripo-Trace-ID');
       const createTaskJson = await createTaskRes.json();
+      console.log("Backend: Tripo Create Task response:", JSON.stringify(createTaskJson), "Trace ID:", createTaskTraceId);
       if (createTaskJson.code !== 0) {
         return tripoErrorResponse(createTaskJson, createTaskTraceId || '');
       }
@@ -219,6 +226,7 @@ export async function POST(req: Request) {
       });
       const createTaskTraceId = createTaskRes.headers.get('X-Tripo-Trace-ID');
       const createTaskJson = await createTaskRes.json();
+      console.log("Backend: Tripo Create Task response:", JSON.stringify(createTaskJson), "Trace ID:", createTaskTraceId);
       if (createTaskJson.code !== 0) {
         return tripoErrorResponse(createTaskJson, createTaskTraceId || '');
       }
@@ -240,6 +248,7 @@ export async function POST(req: Request) {
       });
       const tripoTraceId = uploadRes.headers.get('X-Tripo-Trace-ID');
       const uploadJson = await uploadRes.json();
+      console.log("Backend: Tripo Upload response:", JSON.stringify(uploadJson), "Trace ID:", tripoTraceId);
       if (uploadJson.code !== 0) {
         return tripoErrorResponse(uploadJson, tripoTraceId || '');
       }
@@ -265,6 +274,7 @@ export async function POST(req: Request) {
       });
       const createTaskTraceId = createTaskRes.headers.get('X-Tripo-Trace-ID');
       const createTaskJson = await createTaskRes.json();
+      console.log("Backend: Tripo Create Task (small file) response:", JSON.stringify(createTaskJson), "Trace ID:", createTaskTraceId);
       if (createTaskJson.code !== 0) {
         return tripoErrorResponse(createTaskJson, createTaskTraceId || '');
       }
@@ -275,6 +285,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ status: 'processing', taskId: newTaskId, traceId: createTaskTraceId }, { status: 202 });
     }
   } catch (error) {
+    console.error("Backend: Unhandled server error:", error);
     return NextResponse.json({ error: `Internal server error: ${error instanceof Error ? error.message : String(error)}` }, { status: 500 });
   }
 } 
