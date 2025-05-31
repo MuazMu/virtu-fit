@@ -91,7 +91,7 @@ export async function POST(req: Request) {
         return tripoErrorResponse(pollJson, pollTraceId || '');
       }
       if (pollJson.data.status === 'success') {
-        const modelUrl = pollJson.data.output?.model;
+        const modelUrl = pollJson.data.output?.pbr_model;
         if (modelUrl) {
           console.log("Backend: Model URL found:", modelUrl);
           return NextResponse.json({ modelUrl, traceId: pollTraceId }, { status: 200 });
