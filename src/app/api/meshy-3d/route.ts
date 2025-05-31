@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     console.log("[Meshy3D] Create Task Response Status:", createTaskRes.status, createTaskRes.statusText);
     console.log("[Meshy3D] Create Task Response Headers:", JSON.stringify(Object.fromEntries(createTaskRes.headers.entries())));
 
-    let createTaskResText = await createTaskRes.clone().text();
+    const createTaskResText = await createTaskRes.clone().text();
     console.log("[Meshy3D] Create Task Response Body (first 500 chars):", createTaskResText.slice(0, 500));
 
     if (!createTaskRes.ok) {
@@ -97,7 +97,7 @@ export async function POST(req: Request) {
         });
 
         console.log(`[Meshy3D] Polling task ${taskId} - Status:`, getTaskRes.status, getTaskRes.statusText);
-        let getTaskResText = await getTaskRes.clone().text();
+        const getTaskResText = await getTaskRes.clone().text();
         console.log(`[Meshy3D] Polling task ${taskId} - Response Body (first 500 chars):`, getTaskResText.slice(0, 500));
 
         if (!getTaskRes.ok) {
