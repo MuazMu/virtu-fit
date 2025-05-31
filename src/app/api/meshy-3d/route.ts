@@ -1,10 +1,5 @@
 import { NextResponse } from 'next/server';
 
-// Helper to wait for a given time
-function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 // Tripo error code mapping for user-friendly messages
 const TRIPO_ERROR_MAP: Record<number, { message: string; suggestion: string }> = {
   1002: {
@@ -45,6 +40,9 @@ const TRIPO_ERROR_MAP: Record<number, { message: string; suggestion: string }> =
   },
 };
 
+// Type for Tripo error responses
+type TripoError = { code: number; message?: string; suggestion?: string };
+
 export async function POST(req: Request) {
   const apiKey = process.env.TRIPO_API_KEY;
   if (!apiKey || typeof apiKey !== 'string' || apiKey.trim() === '') {
@@ -58,14 +56,18 @@ export async function POST(req: Request) {
 
     // Helper: Map Tripo error codes to user-friendly messages
     function tripoErrorResponse(tripoJson: unknown, traceId: string) {
-      if (typeof tripoJson !== 'object' || tripoJson === null) {
+      if (
+        typeof tripoJson !== 'object' ||
+        tripoJson === null ||
+        typeof (tripoJson as TripoError).code !== 'number'
+      ) {
         return NextResponse.json({ error: 'Unknown Tripo API error', traceId }, { status: 500 });
       }
-      const code = (tripoJson as any).code;
+      const { code, message, suggestion } = tripoJson as TripoError;
       const mapped = TRIPO_ERROR_MAP[code];
       return NextResponse.json({
-        error: mapped?.message || (tripoJson as any).message || 'Tripo API error',
-        suggestion: mapped?.suggestion || (tripoJson as any).suggestion,
+        error: mapped?.message || message || 'Tripo API error',
+        suggestion: mapped?.suggestion || suggestion,
         traceId,
         code,
       }, { status: 500 });
